@@ -1,6 +1,9 @@
-
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalendarIcon } from "lucide-react";
@@ -16,10 +19,12 @@ export function DatePicker({
 }) {
   const [inputValue, setInputValue] = useState(value);
   const [date, setDate] = useState<Date | undefined>(() =>
-    value && isValid(new Date(value)) ? new Date(value + "T00:00:00") : undefined
+    value && isValid(new Date(value))
+      ? new Date(value + "T00:00:00")
+      : undefined
   );
   const [error, setError] = useState<string>("");
-
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     setInputValue(value);
     if (value && isValid(new Date(value))) {
@@ -42,7 +47,9 @@ export function DatePicker({
 
   const handleCalendarSelect = (d: Date | undefined) => {
     if (!d) return;
-    const adjusted = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const adjusted = new Date(
+      Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
+    );
     const iso = adjusted.toISOString().split("T")[0];
     setDate(adjusted);
     setInputValue(iso);
@@ -59,7 +66,8 @@ export function DatePicker({
           onChange={(e) => handleInputChange(e.target.value)}
           className="max-w-[150px]"
         />
-        <Popover>
+
+        <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="icon">
               <CalendarIcon className="h-4 w-4" />
@@ -69,7 +77,10 @@ export function DatePicker({
             <Calendar
               mode="single"
               selected={date}
-              onSelect={handleCalendarSelect}
+              onSelect={(d) => {
+                handleCalendarSelect(d);
+                setOpen(false); // Close popover after selection
+              }}
               captionLayout="dropdown"
               fromYear={1970}
               toYear={new Date().getFullYear() + 10}

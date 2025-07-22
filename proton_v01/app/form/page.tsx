@@ -181,7 +181,10 @@ export default function TableDemo() {
                   </div>
                   <div className="space-x-2">
                     <Button
-                      onClick={handleSave}
+                      onClick={() => {
+                        setCurrentRecord(initialState);
+                        setErrors({});
+                      }}
                       disabled={!isAnyFieldFilled}
                       className="bg-gray-500 hover:bg-gray-700 text-white dark:bg-gray-500 dark:hover:bg-gray-600 tracking-wider min-w-[80px]"
                     >
