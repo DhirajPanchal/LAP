@@ -25,10 +25,17 @@ export function DatePicker({
   );
   const [error, setError] = useState<string>("");
   const [open, setOpen] = useState(false);
+
   useEffect(() => {
     setInputValue(value);
-    if (value && isValid(new Date(value))) {
-      setDate(new Date(value + "T00:00:00"));
+
+    const parsed = parse(value, "yyyy-MM-dd", new Date());
+    if (isValid(parsed)) {
+      setDate(parsed);
+      setError(""); // <-- clear error when valid value is passed down
+    } else if (value === "") {
+      setDate(undefined);
+      setError(""); // <-- clear error on empty value (Reset case)
     }
   }, [value]);
 
@@ -42,6 +49,7 @@ export function DatePicker({
       onChange(iso);
     } else {
       setError("Invalid date format. Use YYYY-MM-DD");
+      onChange(val); // IMPORTANT: propagate even if invalid
     }
   };
 
@@ -64,6 +72,19 @@ export function DatePicker({
           placeholder="YYYY-MM-DD"
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
+          onKeyDown={(e) => {
+            const allowedKeys = [
+              "Backspace",
+              "Tab",
+              "ArrowLeft",
+              "ArrowRight",
+              "Delete",
+              "-",
+            ];
+            if (!/[0-9]/.test(e.key) && !allowedKeys.includes(e.key)) {
+              e.preventDefault();
+            }
+          }}
           className="max-w-[150px]"
         />
 

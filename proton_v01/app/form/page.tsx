@@ -82,8 +82,23 @@ export default function TableDemo() {
     }
   };
 
-  const isAnyFieldFilled = Object.values(currentRecord).some(
-    (val) => val && val.trim() !== ""
+  // const isDirty = Object.entries(currentRecord).some(
+  //   ([key, val]) => val !== initialState[key as keyof typeof initialState]
+  // );
+
+  const isDirty = editableKeys.some((key) => {
+    const typedKey = key as keyof Grade;
+    const originalVal = initialState[typedKey] ?? "";
+    const currentVal = currentRecord[typedKey] ?? "";
+    return originalVal !== currentVal;
+  });
+
+  console.log(
+    "Dirty keys:",
+    editableKeys.filter((key) => {
+      const typedKey = key as keyof Grade;
+      return (initialState[typedKey] ?? "") !== (currentRecord[typedKey] ?? "");
+    })
   );
 
   return (
@@ -185,14 +200,14 @@ export default function TableDemo() {
                         setCurrentRecord(initialState);
                         setErrors({});
                       }}
-                      disabled={!isAnyFieldFilled}
+                      disabled={!isDirty}
                       className="bg-gray-500 hover:bg-gray-700 text-white dark:bg-gray-500 dark:hover:bg-gray-600 tracking-wider min-w-[80px]"
                     >
                       Reset
                     </Button>
                     <Button
                       onClick={handleSave}
-                      disabled={!isAnyFieldFilled}
+                      disabled={!isDirty}
                       className="bg-gray-500 hover:bg-gray-700 text-white dark:bg-gray-500 dark:hover:bg-gray-600 tracking-wider min-w-[80px]"
                     >
                       Save
