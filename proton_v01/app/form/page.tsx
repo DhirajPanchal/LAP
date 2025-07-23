@@ -1,26 +1,7 @@
 "use client";
 
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DateInputPickerV1 } from "@/components/custom/date-picker-with-input-new";
 import { Button } from "@/components/ui/button";
-import { SquarePenIcon } from "lucide-react";
-import {
-  FIELD_MENIFEST,
-  Grade,
-  GRADE_DUMMY,
-  REASONS,
-  VALIDATION_RULES,
-} from "./data";
-import { useState } from "react";
-import { DatePicker } from "@/components/custom/date-picker-with-input";
 import {
   Select,
   SelectContent,
@@ -28,6 +9,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { SquarePenIcon } from "lucide-react";
+import { useState } from "react";
+import {
+  FIELD_MENIFEST,
+  Grade,
+  GRADE_DUMMY,
+  REASONS,
+  VALIDATION_RULES,
+} from "./data";
 
 export default function TableDemo() {
   const originalRecord = GRADE_DUMMY[0];
@@ -45,7 +44,7 @@ export default function TableDemo() {
     setCurrentRecord((prev) => ({ ...prev, [field]: value }));
   };
 
-  const validate = () => {
+  const xvalidate = () => {
     const newErrors: { [key: string]: string } = {};
     const defaultDateStr = currentRecord["new_default_date"];
     const resolutionDateStr = currentRecord["new_resolution_date"];
@@ -69,6 +68,53 @@ export default function TableDemo() {
       } else if (resolutionDate && defaultDate > resolutionDate) {
         newErrors["new_default_date"] =
           "Default Date cannot be after Resolution Date.";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validate = () => {
+    const newErrors: { [key: string]: string } = {};
+
+    const defaultDateStr = currentRecord["new_default_date"];
+    const resolutionDateStr = currentRecord["new_resolution_date"];
+    const originalDefaultDateStr = originalRecord["old_default_date"];
+
+    const defaultDate = defaultDateStr ? new Date(defaultDateStr) : null;
+    const resolutionDate = resolutionDateStr
+      ? new Date(resolutionDateStr)
+      : null;
+    const originalDefaultDate = originalDefaultDateStr
+      ? new Date(originalDefaultDateStr)
+      : null;
+
+    if (defaultDate) {
+      const now = new Date();
+
+      // 1. Cannot be in the future
+      if (defaultDate > now) {
+        newErrors["new_default_date"] = "Default Date cannot be in the future.";
+      }
+
+      // 2. Cannot be after resolution date
+      else if (resolutionDate && defaultDate > resolutionDate) {
+        newErrors["new_default_date"] =
+          "Default Date cannot be after Resolution Date.";
+      }
+
+      // 3. Must be within ±1 year of original default date
+      else if (originalDefaultDate) {
+        const diffInMs = Math.abs(
+          defaultDate.getTime() - originalDefaultDate.getTime()
+        );
+        const oneYearInMs = 365 * 24 * 60 * 60 * 1000;
+
+        if (diffInMs > oneYearInMs) {
+          newErrors["new_default_date"] =
+            "Default Date must be within ±1 year of the Original Default Date.";
+        }
       }
     }
 
@@ -147,7 +193,7 @@ export default function TableDemo() {
                   <TableCell className="px-6 py-1 text-gray-800 font-medium text-right">
                     {type === "date" ? (
                       <div className="max-w-[250px]">
-                        <DatePicker
+                        <DateInputPickerV1
                           value={String(value ?? "")}
                           onChange={(val) => handleChange(updateKey, val)}
                         />

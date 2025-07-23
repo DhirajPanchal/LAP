@@ -27,7 +27,7 @@ export const GRADE_DUMMY: Grade[] = [
     id: 0,
     old_default_reason: "Dhiraj",
     old_resolution_reason: "Mumbai",
-    old_default_date: "1982-11-20",
+    old_default_date: "2024-01-01",
     old_resolution_date: "2004-09-06",
     new_default_reason: "Reason ONE",
     new_default_date: "2025-07-01",

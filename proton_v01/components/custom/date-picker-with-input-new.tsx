@@ -1,30 +1,32 @@
-import { Calendar } from "@/components/ui/calendar";
+"use client";
+
+import { useState, useEffect } from "react";
+import { CalendarIcon } from "lucide-react";
+import { format, parse, isValid } from "date-fns";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon } from "lucide-react";
-import { useState, useEffect } from "react";
-import { format, parse, isValid } from "date-fns";
 
-export function DatePicker({
+export function DateInputPickerV1({
   value,
   onChange,
 }: {
   value: string;
   onChange: (val: string) => void;
 }) {
-  const [inputValue, setInputValue] = useState(value);
   const [date, setDate] = useState<Date | undefined>(() =>
     value && isValid(new Date(value))
       ? new Date(value + "T00:00:00")
       : undefined
   );
-  const [error, setError] = useState<string>("");
+  const [inputValue, setInputValue] = useState(value);
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setInputValue(value);
@@ -32,10 +34,10 @@ export function DatePicker({
     const parsed = parse(value, "yyyy-MM-dd", new Date());
     if (isValid(parsed)) {
       setDate(parsed);
-      setError(""); // <-- clear error when valid value is passed down
+      setError("");
     } else if (value === "") {
       setDate(undefined);
-      setError(""); // <-- clear error on empty value (Reset case)
+      setError("");
     }
   }, [value]);
 
@@ -45,7 +47,7 @@ export function DatePicker({
 
     const parsed = parse(cleaned, "yyyy-MM-dd", new Date());
     if (isValid(parsed) && cleaned.length === 10) {
-      const iso = parsed.toISOString().split("T")[0];
+      const iso = format(parsed, "yyyy-MM-dd"); // ✅ Safe conversion
       setDate(parsed);
       setError("");
       onChange(iso);
@@ -57,14 +59,12 @@ export function DatePicker({
 
   const handleCalendarSelect = (d: Date | undefined) => {
     if (!d) return;
-    const adjusted = new Date(
-      Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
-    );
-    const iso = adjusted.toISOString().split("T")[0];
-    setDate(adjusted);
+    const iso = format(d, "yyyy-MM-dd"); // ✅ Safe conversion
+    setDate(d);
     setInputValue(iso);
     setError("");
     onChange(iso);
+    setOpen(false);
   };
 
   return (
@@ -74,22 +74,8 @@ export function DatePicker({
           placeholder="YYYY-MM-DD"
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
-          onKeyDown={(e) => {
-            const allowedKeys = [
-              "Backspace",
-              "Tab",
-              "ArrowLeft",
-              "ArrowRight",
-              "Delete",
-              "-",
-            ];
-            if (!/[0-9]/.test(e.key) && !allowedKeys.includes(e.key)) {
-              e.preventDefault();
-            }
-          }}
           className="max-w-[150px]"
         />
-
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="icon">
@@ -100,10 +86,8 @@ export function DatePicker({
             <Calendar
               mode="single"
               selected={date}
-              onSelect={(d) => {
-                handleCalendarSelect(d);
-                setOpen(false); // Close popover after selection
-              }}
+              defaultMonth={date}
+              onSelect={handleCalendarSelect}
               captionLayout="dropdown"
               fromYear={1970}
               toYear={new Date().getFullYear() + 10}
