@@ -1,0 +1,32 @@
+useEffect(() => {
+  if (onColumnFilterChange) {
+    const filters = columnFilters
+      .filter((filter) => filter.value !== null && filter.value !== undefined)
+      .map((filter) => {
+        const column = columns.find((col) => col.id === filter.id);
+        const value = filter.value as { operator: string; value: string };
+
+        const type =
+          column?.meta?.type === "date"
+            ? value.operator
+            : value.operator;
+
+        let key =
+          column?.meta?.type === "date"
+            ? "date_value"
+            : "str_value";
+
+        if (column?.meta?.type === "enum" && filter.id === "is_history") {
+          key = "bool_value";
+        }
+
+        return {
+          name: filter.id,
+          type,
+          [key]: value.value,
+        };
+      });
+
+    onColumnFilterChange(filters);
+  }
+}, [columnFilters]);

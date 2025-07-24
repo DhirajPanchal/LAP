@@ -89,7 +89,18 @@ export default function TableDemo() {
     const originalDefaultDate = originalDefaultDateStr
       ? new Date(originalDefaultDateStr)
       : null;
+    // Format error for Default Date
+    if (defaultDateStr && (!defaultDate || defaultDateStr.length !== 10)) {
+      newErrors["new_default_date"] = "Invalid date format. Use YYYY-MM-DD";
+    }
 
+    // Format error for Resolution Date
+    if (
+      resolutionDateStr &&
+      (!resolutionDate || resolutionDateStr.length !== 10)
+    ) {
+      newErrors["new_resolution_date"] = "Invalid date format. Use YYYY-MM-DD";
+    }
     if (defaultDate) {
       const now = new Date();
 
