@@ -9,6 +9,9 @@ export default function Home() {
         <Link className="text-sm text-blue-600" href="/form">
           FORM
         </Link>
+        <Link className="text-sm text-blue-600" href="/default">
+          DEFAULT
+        </Link>
       </main>
     </div>
   );
