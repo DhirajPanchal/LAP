@@ -6,23 +6,7 @@ export default function Home() {
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
         <Image
           className="dark:invert"
-          src="/ADGv1.png"
-          alt="Next.js logo"
-          width={180}
-          height={50}
-          priority
-        />
-        <Image
-          className="dark:invert"
-          src="/ADGv2.png"
-          alt="Next.js logo"
-          width={180}
-          height={50}
-          priority
-        />
-        <Image
-          className="dark:invert"
-          src="/ADGv3.png"
+          src="/ADG1.png"
           alt="Next.js logo"
           width={180}
           height={50}
