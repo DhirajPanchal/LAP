@@ -1,19 +1,21 @@
-import SkewLoader from "@/controls/loaders/SkewLoader";
+import { DataGridv01 } from "@/lab/component/datagridv01/datagrid";
+import BankLoader from "@/lab/controls/loaders/BankLoader";
 import Image from "next/image";
 export default function Page() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-1 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/ADG1.png"
-          alt="Next.js logo"
-          width={180}
-          height={50}
-          priority
-        />
-        <SkewLoader />
-      </main>
+
+    <div className=" flex flex-col items-center gap-4">
+      <Image
+        className="dark:invert"
+        src="/adg-logo-01-01.png"
+        alt="Next.js logo"
+        width={180}
+        height={50}
+        priority
+      />
+      <BankLoader loading={false} size={12} color="#EE3524" />
+      {/* <BankLoader loading={true} size={12} color="#EE3524" /> */}
+    <DataGridv01></DataGridv01>
     </div>
   );
 }
