@@ -318,3 +318,146 @@ export default function FrameDataGridV2() {
   // pass onColumnVisibilityChange to useReactTable, and use setFrozen/toggleFreeze in your UI
   // ...
 }
+
+
+
+APPR====================================================================
+1---
+// Sidecar persistence for gridPrefs only (independent of redux-persist)
+import type { VisibilityState } from "@tanstack/react-table";
+
+export type PageKey = "viewer" | "reviewer" | "approver";
+
+export interface GridPrefs {
+  visibility: VisibilityState;
+  frozen: string[];
+}
+
+type Payload = {
+  // page -> table -> prefs
+  [page in PageKey]?: Record<string, GridPrefs>;
+};
+
+const KEY = "frame:gridPrefs:v1"; // change version if schema changes
+
+function readAll(): Payload {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    return raw ? (JSON.parse(raw) as Payload) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAll(data: Payload) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(data));
+  } catch {
+    // storage full / blocked — ignore
+  }
+}
+
+export function loadGridPrefs(page: PageKey, table: string): GridPrefs | null {
+  const all = readAll();
+  return all?.[page]?.[table] ?? null;
+}
+
+export function saveGridPrefs(page: PageKey, table: string, prefs: GridPrefs) {
+  const all = readAll();
+  all[page] ??= {};
+  all[page]![table] = prefs;
+  writeAll(all);
+}
+
+
+2-----
+
+
+"use client";
+import React from "react";
+import { usePathname } from "next/navigation";
+import type { VisibilityState } from "@tanstack/react-table";
+import { loadGridPrefs, saveGridPrefs, type GridPrefs } from "@/lib/gridPrefsSidecar";
+// (Optional) still dispatch to your redux slice if you want in-app state too
+import { useDispatch, useSelector } from "react-redux";
+import { writeVisibility, writeFrozen } from "@/state/gridPrefsSlice";
+
+const TABLE_KEY = "mdlGrid"; // stable per grid
+const ALWAYS_VISIBLE = new Set(["select", "id"]);
+const DEFAULT_HIDDEN: VisibilityState = {
+  customer_legal_name: false,
+  industry: false,
+  gcdu_global_id: false,
+};
+
+const pageFromPath = (p: string) =>
+  p.includes("/reviewer") ? "reviewer" :
+  p.includes("/approver") ? "approver" : "viewer";
+
+export default function FrameDataGridV2(/* props */) {
+  const pathname = usePathname();
+  const pageKey = pageFromPath(pathname) as const;
+
+  // Local table state
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() => {
+    const v = { ...DEFAULT_HIDDEN, select: true, id: true };
+    return v;
+  });
+  const [frozenColumnIds, setFrozenColumnIds] = React.useState<string[]>([]);
+
+  const dispatch = useDispatch();
+
+  // 1) On mount, hydrate from sidecar (if present)
+  React.useEffect(() => {
+    const sidecar = loadGridPrefs(pageKey, TABLE_KEY);
+    if (sidecar) {
+      setColumnVisibility((prev) => {
+        const next = { ...prev, ...(sidecar.visibility ?? {}) };
+        ALWAYS_VISIBLE.forEach((k) => (next[k] = true));
+        return next;
+      });
+      setFrozenColumnIds((prev) => {
+        const next = (sidecar.frozen ?? prev ?? []).filter((c) => !ALWAYS_VISIBLE.has(c));
+        return next;
+      });
+
+      // (Optional) also sync redux slice so menus etc. see the same values
+      dispatch(writeVisibility({ page: pageKey, table: TABLE_KEY, visibility: sidecar.visibility }));
+      dispatch(writeFrozen({ page: pageKey, table: TABLE_KEY, frozen: sidecar.frozen }));
+    }
+  }, [pageKey, dispatch]);
+
+  // 2) When user changes visibility or freeze, save to sidecar (and redux slice if you use it)
+  const onColumnVisibilityChange = (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
+    setColumnVisibility((old) => {
+      const next = typeof updater === "function" ? (updater as any)(old) : updater;
+      ALWAYS_VISIBLE.forEach((k) => (next[k] = true));
+
+      // persist to sidecar
+      saveGridPrefs(pageKey, TABLE_KEY, { visibility: next, frozen: frozenColumnIds });
+
+      // (Optional) keep redux slice updated for in-app state
+      dispatch(writeVisibility({ page: pageKey, table: TABLE_KEY, visibility: next }));
+      return { ...next };
+    });
+  };
+
+  const setFrozen = (next: string[] | ((old: string[]) => string[])) => {
+    setFrozenColumnIds((old) => {
+      const f = typeof next === "function" ? (next as any)(old) : next;
+      const cleaned = f.filter((c) => !ALWAYS_VISIBLE.has(c));
+
+      // persist to sidecar
+      saveGridPrefs(pageKey, TABLE_KEY, { visibility: columnVisibility, frozen: cleaned });
+
+      // (Optional) update redux slice
+      dispatch(writeFrozen({ page: pageKey, table: TABLE_KEY, frozen: cleaned }));
+      return cleaned;
+    });
+  };
+
+  // … pass onColumnVisibilityChange to useReactTable, and use setFrozen/toggleFreeze in your UI
+  return (/* your JSX */);
+}
