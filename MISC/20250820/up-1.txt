@@ -1,0 +1,247 @@
+1 -------------
+
+// src/lib/persistStorage.ts
+import createWebStorage from "redux-persist/lib/storage/createWebStorage";
+
+const createNoopStorage = () => ({
+  getItem(_key: string) {
+    return Promise.resolve(null);
+  },
+  setItem(_key: string, value: string) {
+    return Promise.resolve(value);
+  },
+  removeItem(_key: string) {
+    return Promise.resolve();
+  },
+});
+
+export const persistStorage =
+  typeof window !== "undefined" ? createWebStorage("local") : (createNoopStorage() as any);
+2 -------------
+import { PayloadAction, createSlice } from "@reduxjs/toolkit";
+import type { VisibilityState } from "@tanstack/react-table";
+
+type PageKey = "viewer" | "reviewer" | "approver"; // adjust if needed
+type TableKey = string; // e.g., "mdlGrid"
+
+export interface GridPrefs {
+  visibility: VisibilityState;
+  frozen: string[]; // column IDs
+}
+
+type GridPrefsState = {
+  // page -> table -> prefs
+  [page in PageKey]?: {
+    [table in TableKey]?: GridPrefs;
+  };
+};
+
+const initialState: GridPrefsState = {};
+
+function sanitizePrefs(prefs: GridPrefs): GridPrefs {
+  // Enforce: 'select' & 'id' always visible and never freezable
+  const visibility = {
+    ...prefs.visibility,
+    select: true,
+    id: true,
+  };
+  const frozen = (prefs.frozen || []).filter((c) => c !== "select" && c !== "id");
+  return { visibility, frozen };
+}
+
+const gridPrefsSlice = createSlice({
+  name: "gridPrefs",
+  initialState,
+  reducers: {
+    writePrefs(
+      state,
+      action: PayloadAction<{ page: PageKey; table: TableKey; prefs: GridPrefs }>
+    ) {
+      const { page, table, prefs } = action.payload;
+      const safe = sanitizePrefs(prefs);
+      state[page] ??= {};
+      state[page]![table] = safe;
+    },
+    writeVisibility(
+      state,
+      action: PayloadAction<{ page: PageKey; table: TableKey; visibility: VisibilityState }>
+    ) {
+      const { page, table, visibility } = action.payload;
+      state[page] ??= {};
+      const existing = state[page]![table] ?? { visibility: {}, frozen: [] };
+      state[page]![table] = sanitizePrefs({ ...existing, visibility });
+    },
+    writeFrozen(
+      state,
+      action: PayloadAction<{ page: PageKey; table: TableKey; frozen: string[] }>
+    ) {
+      const { page, table, frozen } = action.payload;
+      state[page] ??= {};
+      const existing = state[page]![table] ?? { visibility: {}, frozen: [] };
+      state[page]![table] = sanitizePrefs({ ...existing, frozen });
+    },
+    resetPrefs(state, action: PayloadAction<{ page: PageKey; table: TableKey }>) {
+      const { page, table } = action.payload;
+      if (state[page]) delete state[page]![table];
+    },
+  },
+});
+
+export const { writePrefs, writeVisibility, writeFrozen, resetPrefs } = gridPrefsSlice.actions;
+export default gridPrefsSlice.reducer;
+
+
+3 -------------
+
+"use client";
+
+import { configureStore, combineReducers } from "@reduxjs/toolkit";
+import { persistReducer, persistStore } from "redux-persist";
+import { persistStorage } from "./persistStorage";
+import gridPrefsReducer from "@/state/gridPrefsSlice";
+// ... your other reducers
+
+const rootReducer = combineReducers({
+  gridPrefs: gridPrefsReducer,
+  // ...others
+});
+
+const persistConfig = {
+  key: "root",
+  storage: persistStorage,
+  whitelist: ["gridPrefs"], // persist only what you need
+  version: 1,
+};
+
+const persistedReducer = persistReducer(persistConfig, rootReducer);
+
+export const rootStore = configureStore({
+  reducer: persistedReducer,
+  middleware: (gDM) =>
+    gDM({
+      serializableCheck: {
+        ignoredActions: ["persist/PERSIST", "persist/REHYDRATE"],
+      },
+    }),
+});
+
+export const storePersistor = persistStore(rootStore);
+
+export type RootState = ReturnType<typeof rootStore.getState>;
+export type AppDispatch = typeof rootStore.dispatch;
+
+
+4 -------------
+
+"use client";
+
+import React from "react";
+import { usePathname } from "next/navigation";
+import { useDispatch, useSelector } from "react-redux";
+import type { RootState } from "@/lib/store";
+import { writeVisibility, writeFrozen } from "@/state/gridPrefsSlice";
+import type { VisibilityState } from "@tanstack/react-table";
+import { useReactTable } from "@tanstack/react-table";
+
+// ---- constants ----
+const TABLE_KEY = "mdlGrid"; // stable ID for this table across pages
+const ALWAYS_VISIBLE = new Set(["select", "id"]);
+const DEFAULT_HIDDEN: VisibilityState = {
+  // your three default-hidden columns => false
+  customer_legal_name: false,
+  industry: false,
+  gcdu_global_id: false,
+};
+
+// utility
+function pageFromPath(pathname: string): "viewer" | "reviewer" | "approver" {
+  if (pathname.includes("/reviewer")) return "reviewer";
+  if (pathname.includes("/approver")) return "approver";
+  return "viewer";
+}
+
+export default function FrameDataGridV2(/* props */) {
+  const pathname = usePathname();
+  const pageKey = pageFromPath(pathname);
+
+  const dispatch = useDispatch();
+
+  const persisted = useSelector((s: RootState) => s.gridPrefs[pageKey]?.[TABLE_KEY]);
+
+  // ---- local state used by TanStack ----
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() => {
+    // start with defaults; overlay persisted visibility if present
+    const v = { ...DEFAULT_HIDDEN, ...(persisted?.visibility ?? {}) };
+    // enforce always-visible
+    ALWAYS_VISIBLE.forEach((k) => (v[k] = true));
+    return v;
+  });
+
+  const [frozenColumnIds, setFrozenColumnIds] = React.useState<string[]>(
+    () => (persisted?.frozen ?? []).filter((c) => !ALWAYS_VISIBLE.has(c))
+  );
+
+  // If store rehydrates later, unify once (no flicker)
+  React.useEffect(() => {
+    if (!persisted) return;
+    setColumnVisibility((prev) => {
+      const next = { ...DEFAULT_HIDDEN, ...prev, ...(persisted.visibility ?? {}) };
+      ALWAYS_VISIBLE.forEach((k) => (next[k] = true));
+      return next;
+    });
+    setFrozenColumnIds((prev) => {
+      const merged = persisted.frozen ?? prev ?? [];
+      return merged.filter((c) => !ALWAYS_VISIBLE.has(c));
+    });
+  }, [persisted]);
+
+  // ---- handlers wired to TanStack ----
+  const handleVisibilityChange = (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
+    setColumnVisibility((old) => {
+      const next = typeof updater === "function" ? (updater as any)(old) : updater;
+      // enforce always-visible before persisting
+      ALWAYS_VISIBLE.forEach((k) => (next[k] = true));
+      dispatch(writeVisibility({ page: pageKey, table: TABLE_KEY, visibility: next }));
+      return { ...next };
+    });
+  };
+
+  const handleFrozenChange = (next: string[] | ((old: string[]) => string[])) => {
+    setFrozenColumnIds((old) => {
+      const f = typeof next === "function" ? (next as any)(old) : next;
+      const cleaned = f.filter((c) => !ALWAYS_VISIBLE.has(c));
+      dispatch(writeFrozen({ page: pageKey, table: TABLE_KEY, frozen: cleaned }));
+      return cleaned;
+    });
+  };
+
+  // ---- TanStack table ----
+  const table = useReactTable({
+    // data, columns, getCoreRowModel, getPaginationRowModel, etc...
+    state: {
+      columnVisibility,
+      // sorting, columnFilters, rowSelection...
+    },
+    onColumnVisibilityChange: handleVisibilityChange,
+    // your other callbacks: onSortingChange, onColumnFiltersChange, etc.
+  });
+
+  // ---- in your freeze UI, call handleFrozenChange([...]) ----
+  // Example: toggle freeze for a column
+  const toggleFreeze = (colId: string) => {
+    if (ALWAYS_VISIBLE.has(colId)) return; // ignore
+    handleFrozenChange((old) =>
+      old.includes(colId) ? old.filter((c) => c !== colId) : [...old, colId]
+    );
+  };
+
+  // … render grid, pass `frozenColumnIds` to your sticky/frozen logic
+
+  return (
+    // your existing JSX
+    <div>{/* table here */}</div>
+  );
+}
+
+
+5 -------------
