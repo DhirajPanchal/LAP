@@ -227,3 +227,94 @@ export default function FrameDataGridV2(/* props */) {
   // pass frozenColumnIds to your sticky/freeze logic
   return (/* your JSX rendering table */);
 }
+
+
+1-----------------------------
+
+// FrameDataGridV2.tsx
+import React from "react";
+import isEqual from "fast-deep-equal"; // or write your own shallow/deep compare
+import { useSelector, useDispatch } from "react-redux";
+import type { AppRootState } from "@/lib/store";
+import { writeVisibility, writeFrozen } from "@/lib/mdl/gridPrefsSlice";
+
+// ...your other imports
+
+const TABLE_KEY = "mdlGrid";
+const ALWAYS_VISIBLE = new Set(["select", "id"]);
+
+export default function FrameDataGridV2() {
+  // persisted prefs (after rehydrate)
+  const persisted = useSelector((s: AppRootState) => s.gridPrefs?.viewer?.[TABLE_KEY]);
+  const rehydrated = useSelector((s: any) => s._persist?.rehydrated); // redux-persist flag
+  const dispatch = useDispatch();
+
+  // local state (what you already have)
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() => ({
+    customer_legal_name: false,
+    industry: false,
+    gcdu_global_id: false,
+    select: true,
+    id: true,
+  }));
+  const [frozenColumnIds, setFrozenColumnIds] = React.useState<string[]>([]);
+
+  // apply persisted once when it becomes available
+  React.useEffect(() => {
+    if (!rehydrated || !persisted) return;
+    setColumnVisibility((prev) => {
+      const next = { ...prev, ...(persisted.visibility ?? {}) };
+      ALWAYS_VISIBLE.forEach((k) => (next[k] = true));
+      return next;
+    });
+    setFrozenColumnIds((prev) => {
+      const next = persisted.frozen ?? prev ?? [];
+      return next.filter((c) => !ALWAYS_VISIBLE.has(c));
+    });
+  }, [rehydrated, persisted]);
+
+  // ---- IMPORTANT: guard first write so we don't overwrite storage on boot
+  const readyToWriteRef = React.useRef(false);
+  React.useEffect(() => {
+    if (rehydrated) {
+      // allow writes only AFTER rehydrate + our state has been merged
+      const t = setTimeout(() => (readyToWriteRef.current = true), 0);
+      return () => clearTimeout(t);
+    }
+  }, [rehydrated]);
+
+  const onColumnVisibilityChange = (
+    updater: VisibilityState | ((old: VisibilityState) => VisibilityState)
+  ) => {
+    setColumnVisibility((old) => {
+      const next = typeof updater === "function" ? (updater as any)(old) : updater;
+      ALWAYS_VISIBLE.forEach((k) => (next[k] = true));
+
+      // write only when rehydrated AND value actually changed from persisted
+      if (readyToWriteRef.current) {
+        const persistedV = persisted?.visibility ?? {};
+        if (!isEqual(next, persistedV)) {
+          dispatch(writeVisibility({ page: "viewer", table: TABLE_KEY, visibility: next }));
+        }
+      }
+      return { ...next };
+    });
+  };
+
+  const setFrozen = (next: string[] | ((old: string[]) => string[])) => {
+    setFrozenColumnIds((old) => {
+      const f = typeof next === "function" ? (next as any)(old) : next;
+      const cleaned = f.filter((c) => !ALWAYS_VISIBLE.has(c));
+      if (readyToWriteRef.current) {
+        const persistedF = persisted?.frozen ?? [];
+        if (!isEqual(cleaned, persistedF)) {
+          dispatch(writeFrozen({ page: "viewer", table: TABLE_KEY, frozen: cleaned }));
+        }
+      }
+      return cleaned;
+    });
+  };
+
+  // pass onColumnVisibilityChange to useReactTable, and use setFrozen/toggleFreeze in your UI
+  // ...
+}
