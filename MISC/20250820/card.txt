@@ -4,7 +4,6 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { TrendingUp, CheckCircle2, Clock9, XCircle } from "lucide-react";
 
-/** Muted enterprise tones */
 type Tone = "neutral" | "indigo" | "blue" | "teal" | "amber" | "red";
 
 type Props = {
@@ -12,19 +11,15 @@ type Props = {
   value: string | number;
   subtext?: string;
   icon?: React.ReactNode;
-  tone?: Tone;
-  selected?: boolean;
+  tone?: Tone;           // controls the subtle card wash (not the icon)
+  selected?: boolean;    // shows indigo-200 glow even without hover
   disabled?: boolean;
   onSelect?: () => void;
   className?: string;
   "aria-label"?: string;
 };
 
-/**
- * Each tone adds a VERY soft color wash via ::before.
- * The base card keeps a neutral vertical gradient (glass-like),
- * then we stack a tone wash + a subtle bottom vignette.
- */
+// very soft tone wash over a neutral card surface
 const toneWash: Record<Tone, string> = {
   neutral:
     "before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.slate.400/.10),transparent_60%)] " +
@@ -46,7 +41,7 @@ const toneWash: Record<Tone, string> = {
     "dark:before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.rose.300/.12),transparent_62%)]",
 };
 
-export function MetricSelectCardV4({
+export function MetricSelectCardV5({
   title,
   value,
   subtext,
@@ -64,32 +59,38 @@ export function MetricSelectCardV4({
       disabled={disabled}
       aria-pressed={selected}
       onClick={onSelect}
+      data-selected={selected}
       className={cn(
-        // layout
         "group relative w-full overflow-hidden rounded-2xl p-5 text-left",
-        // base neutral vertical gradient (card surface)
-        // light: white glass; dark: slate glass
+        // neutral vertical surface + blur
         "bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.78))] " +
-          "dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(15,23,42,0.60))] " +
-          "backdrop-blur",
-        // tone wash (top-right), super low alpha
-        "before:absolute before:inset-0 before:-z-10 before:rounded-2xl " + toneWash[tone],
-        // bottom vignette to anchor the card (no visible border)
+          "dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(15,23,42,0.60))] backdrop-blur",
+        // tone wash (top-right)
+        "before:absolute before:inset-0 before:-z-10 before:rounded-2xl",
+        toneWash[tone],
+        // bottom vignette (no border)
         "after:absolute after:inset-x-0 after:bottom-0 after:h-10 after:-z-10 " +
           "after:bg-[linear-gradient(0deg,rgba(2,6,23,0.05),transparent)] " +
           "dark:after:bg-[linear-gradient(0deg,rgba(255,255,255,0.06),transparent)]",
-        // depth (borderless): just soft shadows
+        // base depth (borderless)
         "shadow-[0_1px_1px_rgba(2,6,23,0.04),0_10px_30px_rgba(2,6,23,0.06)] " +
           "dark:shadow-[0_1px_1px_rgba(0,0,0,0.35),0_8px_24px_rgba(0,0,0,0.35)]",
-        // interactions
+        // hover depth
         "transition-all duration-200 outline-none hover:shadow-[0_6px_20px_rgba(2,6,23,0.10)] " +
           "dark:hover:shadow-[0_6px_20px_rgba(0,0,0,0.55)] active:scale-[0.997]",
+        // keyboard focus (keeps glow vibe)
         "focus-visible:shadow-[0_0_0_3px_rgba(99,102,241,0.35),0_10px_30px_rgba(2,6,23,0.10)] " +
-          "dark:focus-visible:shadow-[0_0_0_3px_rgba(99,102,241,0.45),0_8px_24px_rgba(0,0,0,0.55)]",
-        // selected = subtle outer glow in tone color (no ring/border)
-        selected &&
-          "shadow-[0_0_0_4px_rgba(14,165,233,0.22),0_10px_30px_rgba(2,6,23,0.12)] " + // sky-ish glow
-          "dark:shadow-[0_0_0_4px_rgba(56,189,248,0.28),0_8px_24px_rgba(0,0,0,0.6)] saturate-110",
+          "dark:focus-visible:shadow-[0_0_0_3px_rgba(99,102,241,0.45),0_8px_24px_rgba(0,0,0,0.6)]",
+        // *** selected glow — INDIGO-200 ***
+        // base: visible at rest
+        "data-[selected=true]:shadow-[0_0_0_3px_rgba(199,210,254,0.95),0_12px_36px_rgba(2,6,23,0.14)] " +
+          "dark:data-[selected=true]:shadow-[0_0_0_3px_rgba(199,210,254,1),0_10px_30px_rgba(0,0,0,0.7)]",
+        // hover on selected: stronger glow
+        "data-[selected=true]:hover:shadow-[0_0_0_5px_rgba(199,210,254,1),0_14px_42px_rgba(2,6,23,0.18)] " +
+          "dark:data-[selected=true]:hover:shadow-[0_0_0_5px_rgba(199,210,254,1),0_12px_36px_rgba(0,0,0,0.75)]",
+        // click/active on selected: strongest glow
+        "data-[selected=true]:active:shadow-[0_0_0_6px_rgba(199,210,254,1),0_10px_28px_rgba(2,6,23,0.22)] " +
+          "dark:data-[selected=true]:active:shadow-[0_0_0_6px_rgba(199,210,254,1),0_10px_28px_rgba(0,0,0,0.8)]",
         disabled && "opacity-60 cursor-not-allowed",
         className
       )}
@@ -106,16 +107,9 @@ export function MetricSelectCardV4({
           ) : null}
         </div>
 
+        {/* bare icon — no bg/border */}
         {icon ? (
-          <div
-            className={cn(
-              "shrink-0 rounded-xl p-2",
-              // neutral chip so *card* owns the color; icon stays readable
-              "bg-white/70 text-slate-700 shadow-sm ring-1 ring-black/5",
-              "dark:bg-white/10 dark:text-slate-200 dark:ring-white/10",
-              selected ? "scale-105 transition-transform" : "group-hover:scale-105 transition-transform"
-            )}
-          >
+          <div className="shrink-0 text-slate-400 dark:text-slate-300 opacity-80 group-hover:opacity-100 transition-opacity">
             {icon}
           </div>
         ) : null}
@@ -133,31 +127,20 @@ export const CardIcons = {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 "use client";
 
 import * as React from "react";
 import { CardIcons, MetricSelectCardV4 } from "./card3";
+import { MetricSelectCardV5 } from "./card4";
 
 type Key = "total" | "pending" | "approved" | "rejected";
 
-export default function DashboardCards3() {
+export default function DashboardCards5() {
   const [selected, setSelected] = React.useState<Key>("approved");
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <MetricSelectCardV4
+      <MetricSelectCardV5
         title="Total"
         value="3"
         subtext="All requests"
@@ -167,7 +150,7 @@ export default function DashboardCards3() {
         onSelect={() => setSelected("total")}
         aria-label="Total"
       />
-      <MetricSelectCardV4
+      <MetricSelectCardV5
         title="Pending Approval"
         value="1"
         subtext="Awaiting action"
@@ -177,7 +160,7 @@ export default function DashboardCards3() {
         onSelect={() => setSelected("pending")}
         aria-label="Pending Approval"
       />
-      <MetricSelectCardV4
+      <MetricSelectCardV5
         title="Approved"
         value="2"
         subtext="Past 7 days"
@@ -187,7 +170,7 @@ export default function DashboardCards3() {
         onSelect={() => setSelected("approved")}
         aria-label="Approved"
       />
-      <MetricSelectCardV4
+      <MetricSelectCardV5
         title="Rejected"
         value="0"
         subtext="Past 7 days"
