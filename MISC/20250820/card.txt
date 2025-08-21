@@ -4,15 +4,15 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { TrendingUp, CheckCircle2, Clock9, XCircle } from "lucide-react";
 
-type Variant = "wave" | "glow" | "frost" | "tint";
+/** Muted enterprise tones */
+type Tone = "neutral" | "indigo" | "blue" | "teal" | "amber" | "red";
 
-type MetricSelectCardProps = {
+type Props = {
   title: string;
   value: string | number;
   subtext?: string;
   icon?: React.ReactNode;
-  variant?: Variant;
-  sparkline?: number[];         // e.g. [3,5,2,6,8,7]
+  tone?: Tone;
   selected?: boolean;
   disabled?: boolean;
   onSelect?: () => void;
@@ -20,204 +20,179 @@ type MetricSelectCardProps = {
   "aria-label"?: string;
 };
 
-function MiniSparkline({ points = [] }: { points: number[] }) {
-  if (!points.length) return null;
-  const W = 120, H = 36;
-  const max = Math.max(...points);
-  const min = Math.min(...points);
-  const range = Math.max(max - min, 1);
-  const step = W / Math.max(points.length - 1, 1);
-
-  const coords = points
-    .map((p, i) => {
-      const x = i * step;
-      const y = H - ((p - min) / range) * (H - 4) - 2;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  const first = `0,${H}`;
-  const last = `${W},${H}`;
-  const area = `${first} ${coords} ${last}`;
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="opacity-80">
-      <defs>
-        <linearGradient id="spark" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopOpacity="0.35" />
-          <stop offset="100%" stopOpacity="0.05" />
-        </linearGradient>
-      </defs>
-      <polyline points={coords} fill="none" stroke="currentColor" strokeWidth="2" className="opacity-70" />
-      <polygon points={area} fill="url(#spark)" className="opacity-30" />
-    </svg>
-  );
-}
-
-const variantBase: Record<Variant, string> = {
-  wave:
-    "bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900 dark:from-slate-900/40 dark:to-slate-800/40 dark:text-slate-50",
-  glow:
-    "relative isolate text-slate-900 dark:text-slate-50 bg-white/70 dark:bg-white/[0.04] backdrop-blur " +
-    "before:absolute before:inset-0 before:-z-10 before:rounded-2xl " +
-    "before:[background:radial-gradient(120px_100px_at_85%_15%,theme(colors.cyan.300/.25),transparent_60%)] " +
-    "before:dark:[background:radial-gradient(120px_100px_at_85%_15%,theme(colors.cyan.400/.25),transparent_60%)]",
-  frost:
-    "bg-gradient-to-b from-white/80 to-white/50 backdrop-blur text-slate-900 " +
-    "dark:from-slate-900/40 dark:to-slate-900/20 dark:text-slate-50",
-  tint:
-    "bg-gradient-to-br from-indigo-50 to-sky-50 text-slate-900 " +
-    "dark:from-indigo-950/40 dark:to-sky-950/30 dark:text-slate-50",
+/**
+ * Each tone adds a VERY soft color wash via ::before.
+ * The base card keeps a neutral vertical gradient (glass-like),
+ * then we stack a tone wash + a subtle bottom vignette.
+ */
+const toneWash: Record<Tone, string> = {
+  neutral:
+    "before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.slate.400/.10),transparent_60%)] " +
+    "dark:before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.slate.300/.10),transparent_60%)]",
+  indigo:
+    "before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.indigo.400/.14),transparent_62%)] " +
+    "dark:before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.indigo.300/.12),transparent_62%)]",
+  blue:
+    "before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.sky.400/.14),transparent_62%)] " +
+    "dark:before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.sky.300/.12),transparent_62%)]",
+  teal:
+    "before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.teal.400/.14),transparent_62%)] " +
+    "dark:before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.teal.300/.12),transparent_62%)]",
+  amber:
+    "before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.amber.400/.16),transparent_62%)] " +
+    "dark:before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.amber.300/.12),transparent_62%)]",
+  red:
+    "before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.rose.400/.14),transparent_62%)] " +
+    "dark:before:[background:radial-gradient(180px_140px_at_85%_20%,theme(colors.rose.300/.12),transparent_62%)]",
 };
 
-// applied when selected (stronger glow + ring)
-const selectedStyles =
-  "data-[selected=true]:ring-2 data-[selected=true]:ring-sky-300 dark:data-[selected=true]:ring-sky-500 " +
-  "data-[selected=true]:shadow-md data-[selected=true]:saturate-125 " +
-  "data-[selected=true]:before:opacity-100";
-
-// hover/focus/disabled affordances
-const affordances =
-  "transition-all outline-none " +
-  "hover:shadow-sm active:scale-[0.995] " +
-  "focus-visible:ring-2 focus-visible:ring-sky-400 dark:focus-visible:ring-sky-500 " +
-  "disabled:opacity-60 disabled:cursor-not-allowed";
-
-export function MetricSelectCard({
+export function MetricSelectCardV4({
   title,
   value,
   subtext,
   icon,
-  variant = "wave",
-  sparkline,
+  tone = "neutral",
   selected = false,
-  disabled,
+  disabled = false,
   onSelect,
   className,
   ...aria
-}: MetricSelectCardProps) {
-  // use <button> to get keyboard + a11y for free
+}: Props) {
   return (
     <button
       type="button"
       disabled={disabled}
-      onClick={onSelect}
       aria-pressed={selected}
-      data-selected={selected}
+      onClick={onSelect}
       className={cn(
-        "group relative w-full overflow-hidden rounded-2xl p-4 sm:p-5 shadow-sm ring-1 ring-black/5 dark:ring-white/10",
-        variantBase[variant],
-        selectedStyles,
-        affordances,
+        // layout
+        "group relative w-full overflow-hidden rounded-2xl p-5 text-left",
+        // base neutral vertical gradient (card surface)
+        // light: white glass; dark: slate glass
+        "bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.78))] " +
+          "dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(15,23,42,0.60))] " +
+          "backdrop-blur",
+        // tone wash (top-right), super low alpha
+        "before:absolute before:inset-0 before:-z-10 before:rounded-2xl " + toneWash[tone],
+        // bottom vignette to anchor the card (no visible border)
+        "after:absolute after:inset-x-0 after:bottom-0 after:h-10 after:-z-10 " +
+          "after:bg-[linear-gradient(0deg,rgba(2,6,23,0.05),transparent)] " +
+          "dark:after:bg-[linear-gradient(0deg,rgba(255,255,255,0.06),transparent)]",
+        // depth (borderless): just soft shadows
+        "shadow-[0_1px_1px_rgba(2,6,23,0.04),0_10px_30px_rgba(2,6,23,0.06)] " +
+          "dark:shadow-[0_1px_1px_rgba(0,0,0,0.35),0_8px_24px_rgba(0,0,0,0.35)]",
+        // interactions
+        "transition-all duration-200 outline-none hover:shadow-[0_6px_20px_rgba(2,6,23,0.10)] " +
+          "dark:hover:shadow-[0_6px_20px_rgba(0,0,0,0.55)] active:scale-[0.997]",
+        "focus-visible:shadow-[0_0_0_3px_rgba(99,102,241,0.35),0_10px_30px_rgba(2,6,23,0.10)] " +
+          "dark:focus-visible:shadow-[0_0_0_3px_rgba(99,102,241,0.45),0_8px_24px_rgba(0,0,0,0.55)]",
+        // selected = subtle outer glow in tone color (no ring/border)
+        selected &&
+          "shadow-[0_0_0_4px_rgba(14,165,233,0.22),0_10px_30px_rgba(2,6,23,0.12)] " + // sky-ish glow
+          "dark:shadow-[0_0_0_4px_rgba(56,189,248,0.28),0_8px_24px_rgba(0,0,0,0.6)] saturate-110",
+        disabled && "opacity-60 cursor-not-allowed",
         className
       )}
       {...aria}
     >
-      {/* subtle corner shimmer when selected */}
-      <div
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full",
-          "bg-sky-300/20 dark:bg-sky-500/15 blur-2xl transition-opacity",
-          selected ? "opacity-100" : "opacity-0 group-hover:opacity-60"
-        )}
-      />
-
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 text-left">
-          <div className="text-sm font-medium opacity-70">{title}</div>
-          <div className="mt-1 text-3xl font-semibold tracking-tight">{value}</div>
-          {subtext ? <div className="mt-1 text-xs opacity-60">{subtext}</div> : null}
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-slate-600 dark:text-slate-400">{title}</div>
+          <div className="mt-1 text-[28px] leading-none font-semibold text-slate-900 dark:text-slate-50">
+            {value}
+          </div>
+          {subtext ? (
+            <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">{subtext}</div>
+          ) : null}
         </div>
 
         {icon ? (
           <div
             className={cn(
-              "shrink-0 rounded-xl p-2 transition-opacity",
-              selected ? "opacity-100" : "opacity-90 group-hover:opacity-100"
+              "shrink-0 rounded-xl p-2",
+              // neutral chip so *card* owns the color; icon stays readable
+              "bg-white/70 text-slate-700 shadow-sm ring-1 ring-black/5",
+              "dark:bg-white/10 dark:text-slate-200 dark:ring-white/10",
+              selected ? "scale-105 transition-transform" : "group-hover:scale-105 transition-transform"
             )}
           >
             {icon}
           </div>
         ) : null}
       </div>
-
-      {sparkline && sparkline.length > 1 ? (
-        <div className="mt-3 text-sky-600 dark:text-sky-400">
-          <MiniSparkline points={sparkline} />
-        </div>
-      ) : null}
     </button>
   );
 }
 
 export const CardIcons = {
-  total: <TrendingUp className="size-6" />,
-  pending: <Clock9 className="size-6" />,
-  approved: <CheckCircle2 className="size-6" />,
-  rejected: <XCircle className="size-6" />,
+  total: <TrendingUp className="size-5" />,
+  pending: <Clock9 className="size-5" />,
+  approved: <CheckCircle2 className="size-5" />,
+  rejected: <XCircle className="size-5" />,
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 "use client";
 
 import * as React from "react";
-import { MetricSelectCard, CardIcons } from "@/components/MetricSelectCard";
+import { CardIcons, MetricSelectCardV4 } from "./card3";
 
-type CardKey = "total" | "pending" | "approved" | "rejected";
+type Key = "total" | "pending" | "approved" | "rejected";
 
-export default function DashboardCards() {
-  const [selected, setSelected] = React.useState<CardKey>("total");
+export default function DashboardCards3() {
+  const [selected, setSelected] = React.useState<Key>("approved");
 
   return (
-    <div
-      role="radiogroup"
-      aria-label="Dashboard metric"
-      className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-    >
-      <MetricSelectCard
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <MetricSelectCardV4
         title="Total"
         value="3"
         subtext="All requests"
         icon={CardIcons.total}
-        variant="wave"
-        sparkline={[3, 4, 3, 5, 6, 5, 7]}
+        tone="indigo"
         selected={selected === "total"}
         onSelect={() => setSelected("total")}
         aria-label="Total"
       />
-
-      <MetricSelectCard
+      <MetricSelectCardV4
         title="Pending Approval"
         value="1"
         subtext="Awaiting action"
         icon={CardIcons.pending}
-        variant="glow"
-        sparkline={[1, 1, 2, 1, 1, 1]}
+        tone="blue"
         selected={selected === "pending"}
         onSelect={() => setSelected("pending")}
         aria-label="Pending Approval"
       />
-
-      <MetricSelectCard
+      <MetricSelectCardV4
         title="Approved"
         value="2"
         subtext="Past 7 days"
         icon={CardIcons.approved}
-        variant="frost"
-        sparkline={[0, 1, 1, 1, 2, 2, 2]}
+        tone="teal"
         selected={selected === "approved"}
         onSelect={() => setSelected("approved")}
         aria-label="Approved"
       />
-
-      <MetricSelectCard
+      <MetricSelectCardV4
         title="Rejected"
         value="0"
         subtext="Past 7 days"
         icon={CardIcons.rejected}
-        variant="tint"
-        sparkline={[0, 0, 0, 0, 0]}
+        tone="amber"
         selected={selected === "rejected"}
         onSelect={() => setSelected("rejected")}
         aria-label="Rejected"
