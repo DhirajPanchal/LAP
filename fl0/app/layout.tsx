@@ -18,10 +18,14 @@ export default function RootLayout({
       <body>
         <SidebarProvider>
           <AppSidebar />
-          <main>
-            <SidebarTrigger />
-            {children}
-          </main>
+          <div className="flex h-screen w-full overflow-hidden  border border-blue-400">
+            {/* Make <main> flex so children can use min-h-0 */}
+            <main className="flex-1 min-h-0">
+              <SidebarTrigger />
+              {/* keep the children in a column container if you like */}
+              <div className="h-full min-h-0">{children}</div>
+            </main>
+          </div>
         </SidebarProvider>
       </body>
     </html>
